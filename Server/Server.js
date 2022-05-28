@@ -2,6 +2,8 @@
 import http from "http";
 import WebSocket from "websocket";
 
+const port = 8080;
+
 const WebSocketServer = WebSocket.server;
 let Clients = [];
 
@@ -34,8 +36,8 @@ websocket.on("request", request => {
 })
 
 // Listen for incoming request on "http://localhost:8080/"
-httpserver.listen(8080, () =>{
-    console.log("Server is listening on port 8080");
+httpserver.listen(port, () =>{
+    console.log(`Server is listening on port ${port}`);
 });
 
 /*

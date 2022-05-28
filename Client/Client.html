@@ -15,21 +15,24 @@
         <button id="send" onclick="Send()">Send</button>
     </div>
     <script>
+        const protocol = "ws";
+        const url = "localhost";
+        const port = 8080;
+
         let ws;
-        const ConnectButton = document.getElementById("connect");
-        let connected = false;
         let name;
+        let connected = false;
 
         const Connect = () =>  {
             if(!connected)
             {
-                ws = new WebSocket("ws://localhost:8080")
+                ws = new WebSocket(`${protocol}://${url}:${port}`);
                 ws.onopen = () => {
                     name = document.getElementById("name").value;
                     connected = true;
                 }
                 ws.onmessage = (message) => {
-                    console.log(`[Server] ${message.data}`);
+                    console.log(`[Server ${port}] ${message.data}`);
                 }
             }
         }
