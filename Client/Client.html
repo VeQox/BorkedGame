@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client</title>
+    
+    <link href="./css/stylesheet.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <input id="name">
+        <button id="connect" onclick="Connect()">Connect</button>
+        <button id="send" onclick="Send()">Send</button>
+    </div>
+    <script>
+        let ws;
+        const ConnectButton = document.getElementById("connect");
+        let connected = false;
+        let name;
+
+        const Connect = () =>  {
+            if(!connected)
+            {
+                ws = new WebSocket("ws://localhost:8080")
+                ws.onopen = () => {
+                    name = document.getElementById("name").value;
+                    connected = true;
+                }
+                ws.onmessage = (message) => {
+                    console.log(`[Server] ${message.data}`);
+                }
+            }
+        }
+
+        const Send = () => {
+            if(ws.readyState === 1){
+                const data = {
+                    "name": name,
+                    "data": "Some data"
+                };
+
+                ws.send(JSON.stringify(data));
+            }
+        }
+    </script>
+</body>
+</html>

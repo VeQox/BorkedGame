@@ -3,7 +3,7 @@ import http from "http";
 import WebSocket from "websocket";
 
 const WebSocketServer = WebSocket.server;
-let connections = [];
+let Clients = [];
 
 // Create a http Server
 const httpserver = http.createServer((req, res) => {
@@ -17,21 +17,20 @@ const websocket = new WebSocketServer({
 
 // Set Events on every "Client" who connects
 websocket.on("request", request => {
+    let Connection = request.accept(null, request.origin);
 
-    let connection = request.accept(null, request.origin);
-
-    connection.on("close", e => {
+    Connection.on("close", e => {
         console.log("Client disconnection")
-        connections.splice(connections.indexOf(connection),1);
+        Clients.splice(Clients.indexOf(Connection),1);
     });
 
-    connection.on("message", message => {
-        console.log(`Reveived Message [${message.utf8Data}]`);
+    Connection.on("message", message => {
+        const messageJson = JSON.parse(message.utf8Data);
+        console.log(`[Client ${messageJson.name}] ${messageJson.data}`);
     });
 
+    Clients.push(Connection);
     console.log("Client connected");
-
-    connections.push(connection);
 })
 
 // Listen for incoming request on "http://localhost:8080/"
@@ -39,12 +38,14 @@ httpserver.listen(8080, () =>{
     console.log("Server is listening on port 8080");
 });
 
+/*
 every5seconds();
 
 // Send a random number to each Client
 function every5seconds(){
-    connections.forEach(connection => {
-        connection.send(`Message: ${Math.random()}`)
+    Clients.forEach(Connection => {
+        Connection.send(Math.random())
     });
     setTimeout(every5seconds, 5000);
 }
+*/
