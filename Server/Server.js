@@ -1,6 +1,8 @@
 // Import modules
 import { strictEqual } from "assert";
 import http from "http";
+import { connect } from "http2";
+import { resolve } from "path";
 import WebSocket from "websocket";
 
 const port = 8080;
@@ -9,6 +11,7 @@ const Values = ["2","3","4","5","6","7","8","9","10","B","Q","K","A"];
 
 
 const WebSocketServer = WebSocket.server;
+let SelectedCardsCount = 0;
 let Clients = [];
 let UsedCards = [];
 let Stack = [];
@@ -24,27 +27,63 @@ const websocket = new WebSocketServer({
     "httpServer": httpserver
 });
 
+// Wait for every Client to Select a card
+const WaitForSelection = () => {
+    return new Promise(resolve => {
+        if(SelectedCardsCount === Clients.length){
+
+            resolve();
+        }
+    })
+}
+
 // Set Events on every "Client" who connects
 websocket.on("request", request => {
+
+    let name = request.resource.split("=")[1];
     let Connection = request.accept(null, request.origin);
 
-    let cardArray = GetNewHand(10);
+    let Client = {};
+    Client.name = name;
+    Client.connection = Connection;
+    Client.cards = GetNewHand(10);
+    
+    Client.connection.send(JSON.stringify(Client.cards));
 
-    Connection.send(JSON.stringify(cardArray));
-
-    Connection.on("close", e => {
+    Client.connection.on("close", e => {
         console.log("Client disconnection")
-        Clients.splice(Clients.indexOf(Connection),1);
+        Clients.splice(Clients.indexOf(Client),1);
     });
 
-    Connection.on("message", message => {
+    Client.connection.on("message", message => {
         const messageJson = JSON.parse(message.utf8Data);
-        console.log(`[Client ${messageJson.name}] ${messageJson.data}`);
+
+        switch(messageJson.head){
+            case "":
+                console.log(`[Client ${Client.name}] ${messageJson.data}`);
+                break;
+            
+            case "select":
+                if(Client.selectedCard !== undefined){
+                    return;
+                }
+                console.log(`[Client ${Client.name}] selected ${messageJson.data}`);
+                Client.selectedCard = Client.cards[messageJson.data];
+                SelectedCardsCount++;
+                break; 
+        }
     });
 
-    Clients.push(Connection);
-    console.log("Client connected");
+    Clients.push(Client);
+    console.log(`Client ${Client.name} connected`);
 })
+
+const kok = async () => {
+    const result = await WaitForSelection();
+    console.log(result);
+}
+
+kok();
 
 // Listen for incoming request on "http://localhost:8080/"
 httpserver.listen(port, () =>{

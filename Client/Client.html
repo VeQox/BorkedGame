@@ -37,18 +37,10 @@
         const Connect = () =>  {
             if(!connected)
             {
-                ws = new WebSocket(`${protocol}://${url}:${port}`);
+                name = document.getElementById("name").value;
+                ws = new WebSocket(`${protocol}://${url}:${port}/name=${name}`);
                 ws.onopen = () => {
-                    name = document.getElementById("name").value;
                     connected = true;
-
-                    const data = {
-                        "name": name,
-                        "head": "init",
-                        "data": ""
-                    };
-
-                    ws.send(JSON.stringify(data))
                 }
                 ws.onmessage = (message) => {
                     console.log(`[Server ${port}] ${message.data}`);
@@ -59,13 +51,7 @@
         
         const Send = () => {
             if(ws.readyState === 1){
-                const data = {
-                    "name": name,
-                    "head": "",
-                    "data": "Some data"
-                };
-
-                ws.send(JSON.stringify(data));
+                ws.send(JSON.stringify(Parse(name, "", "Some Data")));
             }
         }
 
@@ -84,22 +70,26 @@
                 let column = document.createElement("div");
                 column.classList.add("col");
                 column.id = count;
-                column.addEventListener("click", (event) => {
-                    const data = {
-                    "name": name,
-                    "head": "",
-                    "data": `Selected ${event.path[0].id}`
-                };
 
-                ws.send(JSON.stringify(data)) 
-            });
-            column.innerHTML = `${Card.type} ${Card.value}`;
-            row.appendChild(column);
-            count++;
+                column.addEventListener("click", (event) => {
+                    ws.send(JSON.stringify(Parse(name, "select", `${event.path[0].id}`))) 
+                });
+
+                column.innerHTML = `${Card.type} ${Card.value}`;
+                row.appendChild(column);
+                count++;
             });
 
             container.appendChild(row);
             responseElement.appendChild(container);
+        }
+
+        const Parse = (name, head, data) => {
+            return data = {
+                "name": name,
+                "head": head,
+                "data": data
+            }
         }
     </script>
 </body>
