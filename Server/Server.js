@@ -1,8 +1,5 @@
 // Import modules
-import { strictEqual } from "assert";
 import http from "http";
-import { connect } from "http2";
-import { resolve } from "path";
 import WebSocket from "websocket";
 
 const port = 8080;
@@ -27,14 +24,27 @@ const websocket = new WebSocketServer({
     "httpServer": httpserver
 });
 
-// Wait for every Client to Select a card
-const WaitForSelection = () => {
-    return new Promise(resolve => {
-        if(SelectedCardsCount === Clients.length){
+const Parse = (head, data) => {
+    return data = {
+        "head": head,
+        "data": data
+    }
+}
 
-            resolve();
+const EvaluateWinnerOfRound = () => {
+    let Winner = Clients[0];
+
+    Clients.forEach(Client => {
+
+        if(Winner !== Client && Types.indexOf(Client.selectedCard.type) > Types.indexOf(Winner.selectedCard.type)){
+            Winner = Client;
         }
-    })
+        if(Winner !== Client && Values.indexOf(Client.selectedCard.value) > Types.indexOf(Winner.selectedCard.value)){
+            Winner = Client;
+        }
+    });
+
+    return Winner;
 }
 
 // Set Events on every "Client" who connects
@@ -46,9 +56,10 @@ websocket.on("request", request => {
     let Client = {};
     Client.name = name;
     Client.connection = Connection;
-    Client.cards = GetNewHand(10);
-    
-    Client.connection.send(JSON.stringify(Client.cards));
+    Client.cards = [];
+    Client.points = 0;
+    Client.hits = 0;
+    Client.calls = 0;
 
     Client.connection.on("close", e => {
         console.log("Client disconnection")
@@ -69,21 +80,31 @@ websocket.on("request", request => {
                 }
                 console.log(`[Client ${Client.name}] selected ${messageJson.data}`);
                 Client.selectedCard = Client.cards[messageJson.data];
+                Client.cards.splice(Client.cards.indexOf(Client.selectedCard),1);
+                Client.connection.send(JSON.stringify(Parse("display", Client.cards)));
                 SelectedCardsCount++;
+                if(SelectedCardsCount === Clients.length){
+                    const Winner = EvaluateWinnerOfRound();
+                    Winner.hits++;
+                    SelectedCardsCount = 0;
+                    console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`)
+
+                    Clients.forEach(client => {
+                        client.selectedCard = undefined;
+                    });
+                }
                 break; 
+        
+            case "getCards":
+                Client.calls = messageJson.data;
+                Client.cards = GetNewHand(10);
+                Client.connection.send(JSON.stringify(Parse("display", Client.cards)));
         }
     });
 
     Clients.push(Client);
     console.log(`Client ${Client.name} connected`);
 })
-
-const kok = async () => {
-    const result = await WaitForSelection();
-    console.log(result);
-}
-
-kok();
 
 // Listen for incoming request on "http://localhost:8080/"
 httpserver.listen(port, () =>{

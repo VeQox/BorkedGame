@@ -13,9 +13,9 @@
         <div class="container-fluid">
             <a class="navbar-brand">CardGame</a>
             <form class="d-flex">
+                <input class="form-control me-2" readonly placeholder="Points" id="points" aria-label="Search">
                 <input class="form-control me-2" placeholder="Name" id="name" aria-label="Search">
                 <button class="btn btn-outline-success mx-2" type="button" onclick="Connect()">Connect</button>
-                <button class="btn btn-outline-success mx-2" type="button" onclick="Send()">Send</button>
             </form>
         </div>
     </nav>
@@ -23,6 +23,10 @@
     <div id="response">
     </div>
     
+    <form class="d-flex">
+        <input class="form-control m-2 text-center" placeholder="Calls" id="calls" aria-label="Search">
+        <button class="btn btn-outline-success m-2" type="button" onclick="SetCalls()">Confirm</button>
+    </form>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
     <script>
@@ -33,6 +37,7 @@
         let ws;
         let name;
         let connected = false;
+        let hasCards = false;
 
         const Connect = () =>  {
             if(!connected)
@@ -43,15 +48,17 @@
                     connected = true;
                 }
                 ws.onmessage = (message) => {
+
+                    const messageJson = JSON.parse(message.data);
+
                     console.log(`[Server ${port}] ${message.data}`);
-                    Display(JSON.parse(message.data));
+
+                    switch(messageJson.head){
+                        case "display":
+                            Display(messageJson.data);
+                            break;
+                    }
                 }
-            }
-        }
-        
-        const Send = () => {
-            if(ws.readyState === 1){
-                ws.send(JSON.stringify(Parse(name, "", "Some Data")));
             }
         }
 
@@ -84,6 +91,15 @@
             responseElement.appendChild(container);
         }
 
+        const SetCalls = () => {
+
+            if(!hasCards){
+                const calls = document.getElementById("calls").value;
+                const data = Parse(name, "getCards", calls);
+                ws.send(JSON.stringify(data));
+                hasCards = true;
+            } 
+        }
         const Parse = (name, head, data) => {
             return data = {
                 "name": name,
