@@ -25,7 +25,6 @@
     
     <form class="d-flex">
         <input class="form-control m-2 text-center" placeholder="Calls" id="calls" aria-label="Search">
-        <button class="btn btn-outline-success m-2" type="button" onclick="SetCalls()">Confirm</button>
     </form>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
@@ -37,7 +36,7 @@
         let ws;
         let name;
         let connected = false;
-        let hasCards = false;
+        let cardCount = 1;
 
         const Connect = () =>  {
             if(!connected)
@@ -57,12 +56,17 @@
                         case "display":
                             Display(messageJson.data);
                             break;
+                        case "update":
+                            setCalls = false;
+                            let points = document.getElementById("points");
+                            points.value = messageJson.data;
                     }
                 }
             }
         }
 
         const Display = (CardArray) => {
+
             let responseElement = document.getElementById("response");
             responseElement.innerHTML = "";
 
@@ -79,6 +83,8 @@
                 column.id = count;
 
                 column.addEventListener("click", (event) => {
+                    const calls = document.getElementById("calls").value;
+                    ws.send(JSON.stringify(Parse(name, "setCalls", calls)));
                     ws.send(JSON.stringify(Parse(name, "select", `${event.path[0].id}`))) 
                 });
 
@@ -91,15 +97,6 @@
             responseElement.appendChild(container);
         }
 
-        const SetCalls = () => {
-
-            if(!hasCards){
-                const calls = document.getElementById("calls").value;
-                const data = Parse(name, "getCards", calls);
-                ws.send(JSON.stringify(data));
-                hasCards = true;
-            } 
-        }
         const Parse = (name, head, data) => {
             return data = {
                 "name": name,

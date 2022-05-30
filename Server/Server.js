@@ -111,16 +111,7 @@ httpserver.listen(port, () =>{
     console.log(`Server is listening on port ${port}`);
 });
 
-const InitStack = () => {
-    Types.forEach(Type => {
-        Values.forEach(Value => {
-            let Card = {};
-            Card.type = Type;
-            Card.value = Value;
-            Stack.push(Card);
-        });
-    });
-}
+
 
 InitStack();
 
