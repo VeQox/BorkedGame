@@ -1,4 +1,3 @@
-import http from "http";
 import Websocket from "websocket";
 
 const port : number = 8080;
@@ -34,18 +33,7 @@ let Clients : Client[];
 let UsedCards : Card[] = [];
 const Stack : Card[] = InitStack();
 
-const httpserver = http.createServer((req, res) => {
-    console.log("we have received a request");
-});
-
-httpserver.listen(port, () =>{
-    // Debug
-    console.log(`Server is listening on port ${port}`);
-});
-
-const websocket = new WebSocketServer({
-    "httpServer": httpserver
-});
+const websocket = new WebSocketServer();
 
 websocket.on("request", (request : any) => {
     let Client : Client;
@@ -73,13 +61,49 @@ websocket.on("request", (request : any) => {
             case "select":
                 if(Client.selectedCard !== undefined) return;
 
-                SelectCard(Client, Client.cards[messageJson.data]);
+                SelectCard(Client, Client.cards[messageJson.data]); // increments SelectedCardsCount by one
 
-                if(SelectedCardsCount === Clients.length) EndRound();
+                if(SelectedCardsCount === Clients.length){
+                    EndRound();
+
+                    if(CurrentCardsCount === 0){
+                        CalculatePoints();
+
+                        SetCardsPerRound();
+                    }
+                } 
                 break;
         }
     });
 });
+
+function SetCardsPerRound(){
+    if(CardsPerRound === 10){
+        reverse = true;
+    }
+    if(!reverse){
+        CardsPerRound++;
+        CurrentCardsCount = CardsPerRound;
+    }
+    else{
+        CardsPerRound--;
+        CurrentCardsCount = CardsPerRound;
+    }
+}
+
+function CalculatePoints(){
+    Clients.forEach(Client => {
+        if(Client.calls === Client.hits){
+            Client.points += Client.calls + 1;
+        }
+        else if(Client.calls > Client.hits){
+            Client.points += Client.hits - Client.calls;
+        }
+        else if(Client.calls < Client.hits){
+            Client.points += Client.calls - Client.hits;
+        }
+    });
+}
 
 function SelectCard(Client : Client, selectedCard : Card){
     Client.selectedCard = selectedCard;
@@ -91,7 +115,7 @@ function SelectCard(Client : Client, selectedCard : Card){
 function EndRound(){
     const Winner : Client = GetWinnerOfRound();
     Winner.hits++;
-    SelectedCardsCount = 0;
+    SelectedCardsCount--;
     // Debug
     console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`)
 
@@ -158,6 +182,6 @@ function GetNewCard(){
     let Card : Card;
     do {
         Card = Stack[Math.floor(Math.random()*Stack.length)];
-    } while (UsedCards.includes(Card));
+    } while (UsedCards.indexOf(Card) !== -1);
     return Card;
 }
