@@ -1,23 +1,44 @@
-import Websocket from "websocket";
+import {IncomingMessage} from 'http';
+import Websocket, { RawData } from "ws";
 
 const port : number = 8080;
 const Types : string[] = ["♣","♠","♦","♥"];
 const Values : string[] = ["2","3","4","5","6","7","8","9","10","B","Q","K","A"];
 
-const WebSocketServer = Websocket.server;
+const wss = new Websocket.Server({port});
 
-type Card = {
-    type : string,
-    value : string
+class Card {
+    type : string;
+    value : string;
+
+    constructor(type: string, value: string) {
+        this.type = type;
+        this.value = value;
+    }
 }
-type Client = {
-    name : string,
-    connection : any,
-    cards : Card[],
-    selectedCard : Card,
-    points : number,
-    hits : number,
-    calls : number
+
+class Client {
+    name : string;
+    connection : Websocket.WebSocket;
+    cards : Card[];
+    selectedCard : Card | undefined;
+    points : number;
+    hits : number;
+    calls : number;
+
+    constructor(name: string, connection: any, cards: Card[]) {
+        this.name = name;
+        this.connection = connection;
+        this.points = 0;
+        this.hits = 0;
+        this.calls = 0;
+        this.cards = cards;
+        this.selectedCard = undefined; // didnt find a init value
+    }
+
+    send(msg: string) {
+        this.connection.send(msg);
+    }
 }
 type Message = {
     "name" : string,
@@ -29,52 +50,47 @@ let CardsPerRound : number = 1;
 let CurrentCardsCount : number = CardsPerRound;
 let reverse : boolean  = false;
 let SelectedCardsCount : number = 0;
-let Clients : Client[];
+let clients : Client[] = [];
 let UsedCards : Card[] = [];
 const Stack : Card[] = InitStack();
 
-const websocket = new WebSocketServer();
-
-websocket.on("request", (request : any) => {
-    let Client : Client;
-    Client.name = request.ressource.split("=")[1];
-    Client.connection = request.accept(null, request.origin);
-    Client.points = 0;
-    Client.hits = 0;
-    Client.calls = 0;
-    Client.cards = GetNewHand(CardsPerRound);
-
-    Clients.push(Client);
-    // Debug
-    console.log(`Client ${Client.name} connected`);
-
-    Client.connection.on("close", (code : number) => {
+wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
+    if (!request.url) {
+        ws.close(500);
+    } else {
+        let client : Client = new Client(request.url.substring(1), ws, GetNewHand(CardsPerRound));
+        clients.push(client);
         // Debug
-        console.log(`[Client ${Client.name}] disconnected with code ${code}`);
-        Clients.splice(Clients.indexOf(Client), 1);
-    });
+        console.log(`Client ${client.name} connected`);
 
-    Client.connection.on("message", (message : any) => {
-        const messageJson : Message = JSON.parse(message.utf8Data);
+        ws.on('close', (code : number) => {
+            // Debug
+            console.log(`[Client ${client.name}] disconnected with code ${code}`);
+            clients.splice(clients.indexOf(client), 1);
+        });
 
-        switch(messageJson.head){
-            case "select":
-                if(Client.selectedCard !== undefined) return;
+        ws.on("message", (message : Websocket.RawData) => {
+            const messageJson : Message = JSON.parse(message.toString());
 
-                SelectCard(Client, Client.cards[messageJson.data]); // increments SelectedCardsCount by one
+            switch(messageJson.head){
+                case "select":
+                    if(client.selectedCard !== undefined) return;
 
-                if(SelectedCardsCount === Clients.length){
-                    EndRound();
+                    SelectCard(client, client.cards[parseInt(messageJson.data)]); // increments SelectedCardsCount by one
 
-                    if(CurrentCardsCount === 0){
-                        CalculatePoints();
+                    if(SelectedCardsCount === clients.length){
+                        EndRound();
 
-                        SetCardsPerRound();
-                    }
-                } 
+                        if(CurrentCardsCount === 0){
+                            CalculatePoints();
+
+                            SetCardsPerRound();
+                        }
+                    } 
                 break;
-        }
-    });
+            }
+        });
+    }
 });
 
 function SetCardsPerRound(){
@@ -92,7 +108,7 @@ function SetCardsPerRound(){
 }
 
 function CalculatePoints(){
-    Clients.forEach(Client => {
+    clients.forEach(Client => {
         if(Client.calls === Client.hits){
             Client.points += Client.calls + 1;
         }
@@ -108,7 +124,7 @@ function CalculatePoints(){
 function SelectCard(Client : Client, selectedCard : Card){
     Client.selectedCard = selectedCard;
     Client.cards.splice(Client.cards.indexOf(Client.selectedCard), 1);
-    Client.connection.send(JSON.stringify(Parse("server", "display", Client.cards)));
+    Client.send(JSON.stringify(Parse("server", "display", Client.cards)));
     SelectedCardsCount++;
 }
 
@@ -119,7 +135,7 @@ function EndRound(){
     // Debug
     console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`)
 
-    Clients.forEach(Client => {
+    clients.forEach(Client => {
         Client.selectedCard = undefined;
     });
 }
@@ -134,42 +150,40 @@ function Parse(name : string, head : string, data : any){
 }
 
 function GetWinnerOfRound(){
-    let Winner : Client = Clients[0];
+    let winner : Client = clients[0];
 
-    Clients.forEach(Client => {
-        const ClientType : number = Types.indexOf(Client.selectedCard.type);
-        const WinnerType : number = Types.indexOf(Winner.selectedCard.type);
+    clients.forEach(client => {
+        const CLIENT_TYPE : number = Types.indexOf((client.selectedCard as Card).type);
+        const WINNER_TYPE : number = Types.indexOf((winner.selectedCard as Card).type);
 
-        if(Winner !== Client && ClientType > WinnerType){
-            Winner = Client;
+        if(winner !== client && CLIENT_TYPE > WINNER_TYPE){
+            winner = client;
         }
 
-        const ClientValue : number = Values.indexOf(Client.selectedCard.value);
-        const WinnerValue : number = Values.indexOf(Winner.selectedCard.value);
+        const CLIENT_VALUE : number = Values.indexOf((client.selectedCard as Card).value);
+        const WINNER_VALUE : number = Values.indexOf((winner.selectedCard as Card).value);
 
-        if(Winner !== Client && ClientValue > WinnerValue){
-            Winner = Client;
+        if(winner !== client && CLIENT_VALUE > WINNER_VALUE){
+            winner = client;
         }
     });
 
-    return Winner;
+    return winner;
 }
 
 function InitStack(){
-    let tmp : Card[];
+    let tmp : Card[] = [];
     Types.forEach(Type => {
         Values.forEach(Value => {
-            let Card : Card;
-            Card.type = Type;
-            Card.value = Value;
-            tmp.push(Card);
+            let card: Card = new Card(Type, Value);
+            tmp.push(card);
         });
     });
     return tmp;
 }
 
 function GetNewHand(amount : number){
-    let Cards : Card[];
+    let Cards : Card[] = [];
     for(let i = 0; i < amount; i++){
         let Card = GetNewCard();
         Cards.push(Card);
