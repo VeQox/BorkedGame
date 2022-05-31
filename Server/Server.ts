@@ -46,7 +46,7 @@ type Message = {
     "data" : string,
 }
 
-let CardsPerRound : number = 1;
+let CardsPerRound : number = 2;
 let CurrentCardsCount : number = CardsPerRound;
 let reverse : boolean  = false;
 let SelectedCardsCount : number = 0;
@@ -63,6 +63,7 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
         ws.close(500);
     } else {
         let client : Client = new Client(request.url.substring(1), ws, GetNewHand(CardsPerRound));
+        client.send(JSON.stringify(Parse("server", "display", client.cards)));
         clients.push(client);
         // Debug
         console.log(`Client ${client.name} connected`);
@@ -73,7 +74,7 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
             clients.splice(clients.indexOf(client), 1);
         });
 
-        ws.on("message", (message : Websocket.RawData) => {
+        ws.on("message", (message : RawData) => {
             const messageJson : Message = JSON.parse(message.toString());
 
             switch(messageJson.head){
@@ -82,6 +83,8 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
 
                     SelectCard(client, client.cards[parseInt(messageJson.data)]); // increments SelectedCardsCount by one
 
+
+                    /*
                     if(SelectedCardsCount === clients.length){
                         EndRound();
 
@@ -91,11 +94,20 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
                             SetCardsPerRound();
                         }
                     } 
-                break;
+                    */
+                    break;
+                case "setCalls":
+                    SetCalls(client, parseInt(messageJson.data));
+                    break;
             }
         });
     }
 });
+
+function SetCalls(Client : Client, call : number){
+    Client.calls = isNaN(call) ? 0 : call;
+    console.log(`Client ${Client.name} sets their call as ${Client.calls}`)
+}
 
 function SetCardsPerRound(){
     if(CardsPerRound === 10){
@@ -126,6 +138,7 @@ function CalculatePoints(){
 }
 
 function SelectCard(Client : Client, selectedCard : Card){
+    console.log(`Client ${Client.name} selected ${JSON.stringify(selectedCard)}`)
     Client.selectedCard = selectedCard;
     Client.cards.splice(Client.cards.indexOf(Client.selectedCard), 1);
     Client.send(JSON.stringify(Parse("server", "display", Client.cards)));
