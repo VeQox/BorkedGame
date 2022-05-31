@@ -1,7 +1,7 @@
 import {IncomingMessage} from 'http';
 import Websocket, { RawData } from "ws";
 
-const port : number = 8080;
+const port : number = 8000;
 const Types : string[] = ["♣","♠","♦","♥"];
 const Values : string[] = ["2","3","4","5","6","7","8","9","10","B","Q","K","A"];
 
