@@ -54,6 +54,10 @@ let clients : Client[] = [];
 let UsedCards : Card[] = [];
 const Stack : Card[] = InitStack();
 
+wss.on("listening", () => {
+    console.log(`Server is listenng on port ${port}`)
+});
+
 wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
     if (!request.url) {
         ws.close(500);
