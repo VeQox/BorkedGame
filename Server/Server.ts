@@ -46,7 +46,7 @@ type Message = {
     "data" : string,
 }
 
-let CardsPerRound : number = 2;
+let CardsPerRound : number = 1;
 let CurrentCardsCount : number = CardsPerRound;
 let reverse : boolean  = false;
 let SelectedCardsCount : number = 0;
@@ -79,22 +79,28 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
 
             switch(messageJson.head){
                 case "select":
-                    if(client.selectedCard !== undefined) return;
+                    if(HasSelected(client)) return;
 
-                    SelectCard(client, client.cards[parseInt(messageJson.data)]); // increments SelectedCardsCount by one
+                    SelectCard(client, client.cards[parseInt(messageJson.data)]);
+                    SelectedCardsCount++;
 
-
-                    /*
                     if(SelectedCardsCount === clients.length){
-                        EndRound();
 
-                        if(CurrentCardsCount === 0){
+                        EndTrick(GetWinnerOfTrick());
+
+                        if(CurrentCardsCount == 0){
+
                             CalculatePoints();
 
                             SetCardsPerRound();
+
+                            UsedCards = [];
+                            clients.forEach(client => {
+                                client.cards = GetNewHand(CardsPerRound);
+                                client.send(JSON.stringify(Parse("server", "newRound", client.cards)))
+                            });
                         }
                     } 
-                    */
                     break;
                 case "setCalls":
                     SetCalls(client, parseInt(messageJson.data));
@@ -103,6 +109,15 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
         });
     }
 });
+
+function RemoveSelectedCard(Client : Client){
+    Client.cards.splice(Client.cards.indexOf(Client.selectedCard as Card), 1);
+    Client.send(JSON.stringify(Parse("server", "update", Client.cards)));
+}
+
+function HasSelected(Client: Client){
+    return Client.selectedCard !== undefined
+}
 
 function SetCalls(Client : Client, call : number){
     Client.calls = isNaN(call) ? 0 : call;
@@ -134,26 +149,24 @@ function CalculatePoints(){
         else if(Client.calls < Client.hits){
             Client.points += Client.calls - Client.hits;
         }
+        Client.send(JSON.stringify(Parse("server", "points", Client.points)));
     });
 }
 
 function SelectCard(Client : Client, selectedCard : Card){
+    // Debug
     console.log(`Client ${Client.name} selected ${JSON.stringify(selectedCard)}`)
     Client.selectedCard = selectedCard;
-    Client.cards.splice(Client.cards.indexOf(Client.selectedCard), 1);
-    Client.send(JSON.stringify(Parse("server", "display", Client.cards)));
-    SelectedCardsCount++;
 }
 
-function EndRound(){
-    const Winner : Client = GetWinnerOfRound();
+function EndTrick(Winner : Client){
     Winner.hits++;
-    SelectedCardsCount--;
     // Debug
-    console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`)
+    console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`);
 
+    CurrentCardsCount--;
     clients.forEach(Client => {
-        Client.selectedCard = undefined;
+        RemoveSelectedCard(Client);
     });
 }
 
@@ -166,7 +179,7 @@ function Parse(name : string, head : string, data : any){
     return message;
 }
 
-function GetWinnerOfRound(){
+function GetWinnerOfTrick(){
     let winner : Client = clients[0];
 
     clients.forEach(client => {

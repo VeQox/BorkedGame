@@ -1,14 +1,16 @@
 <script>
-const protocol = "ws";
+        const protocol = "ws";
         const url = "localhost";
         const port = 8000;
 
         let ws;
         let name;
-		let points;
         let connected = false;
-        let cardCount = 1;
-        let newRound = true;
+
+		let Points; 
+        let CallsInput
+        let ConfirmButton;
+        let Cards = [];
 
         function Connect(){
 			ws = new WebSocket(`${protocol}://${url}:${port}/${name}`);
@@ -24,50 +26,35 @@ const protocol = "ws";
 				console.log(`[Server ${port}] ${message.data}`);
 
 				switch(messageJson.head){
-					case "display":
+                    case "newRound":
+                        CallsInput.removeAttribute("disabled");
+                        ConfirmButton.removeAttribute("disabled");
+					case "update":
 						Display(messageJson.data);
 						break;
 					case "update":
-						setCalls = false;
-						let points = document.getElementById("points");
-						points.value = messageJson.data;
+						Points = messageJson.data;
 				}
 			}
         }
 
-        const Display = (CardArray) => {
-
-            let responseElement = document.getElementById("response");
-            responseElement.innerHTML = "";
-
-            let container = document.createElement("div");
-            container.classList.add("container");
-            
-            let row = document.createElement("div");
-            row.classList.add("row");
-
-            let count = 0;
-            CardArray.forEach(Card => {
-                let column = document.createElement("div");
-                column.classList.add("col");
-                column.id = count;
-
-                column.addEventListener("click", (event) => {
-                    ws.send(JSON.stringify(Parse(name, "select", `${event.path[0].id}`))) 
-                });
-
-                column.innerHTML = `${Card.type} ${Card.value}`;
-                row.appendChild(column);
-                count++;
-            });
-
-            container.appendChild(row);
-            responseElement.appendChild(container);
+        function Select(id){
+            console.log(id)
+            ws.send(JSON.stringify(Parse(name, "select", `${id}`))) 
         }
 
-        const SetCalls = () => {
-            if(!newRound || !connected) return;
-            const calls = document.getElementById("calls").value;
+
+        const Display = (CardArray) => {
+            Cards = CardArray;
+        }
+
+        const SetCalls = () => {    
+            if(!connected) return;
+
+            CallsInput.setAttribute("disabled", "");
+            const calls = CallsInput.value;
+            ConfirmButton.setAttribute("disabled", "");
+
             ws.send(JSON.stringify(Parse(name, "setCalls", calls)));
             newRound = false;
         }
@@ -86,18 +73,36 @@ const protocol = "ws";
         <div class="container-fluid">
             <a href="/" class="navbar-brand">CardGame</a>
             <form class="d-flex">
-                <input class="form-control me-2" bind:value={points} disabled placeholder="Points" id="points">
+                <input class="form-control me-2" bind:value={Points} disabled placeholder="Points" id="points">
                 <input class="form-control me-2" bind:value={name}  placeholder="Name" id="name">
                 <button class="btn btn-outline-success mx-2" type="button" id="connect" on:click={Connect}>Connect</button>
             </form>
         </div>
     </nav>
 
-    <div id="response">
+    <div class="container">
+        <div class="row">
+            {#each Cards as Card, i}
+                <div id={i} class="col text-center" on:click={() => Select(i)}>
+                    {Card.type} {Card.value}
+                </div>
+            {/each}
+        </div>
     </div>
     
     <form class="d-flex">
-        <input class="form-control mr-2 my-2 text-center" placeholder="Calls" id="calls" aria-label="Search">
-        <button class="btn btn-outline-success my-2 ms-2" type="button" on:click={SetCalls}>Confirm</button>
+        <input bind:this={CallsInput} class="form-control mr-2 my-2 text-center" placeholder="Calls" id="calls" aria-label="Search">
+        <button bind:this={ConfirmButton} class="btn btn-outline-success my-2 ms-2" type="button" on:click={SetCalls}>Confirm</button>
     </form>
 </main>
+
+<style>
+    main {
+        width: auto;
+        height: auto;
+    }
+
+    .col {
+        cursor: pointer;
+    }
+</style>
