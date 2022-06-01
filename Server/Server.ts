@@ -55,6 +55,7 @@ let UsedCards : Card[] = [];
 const Stack : Card[] = InitStack();
 
 wss.on("listening", () => {
+    // Debug
     console.log(`Server is listenng on port ${port}`)
 });
 
@@ -63,10 +64,10 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
         ws.close(500);
     } else {
         let client : Client = new Client(request.url.substring(1), ws, GetNewHand(CardsPerRound));
-        client.send(JSON.stringify(Parse("server", "display", client.cards)));
+        client.send(JSON.stringify(Parse("server", "newRound", client.cards)));
         clients.push(client);
         // Debug
-        console.log(`Client ${client.name} connected`);
+        console.log(`[Client ${client.name}] connected`);
 
         ws.on('close', (code : number) => {
             // Debug
@@ -76,6 +77,8 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
 
         ws.on("message", (message : RawData) => {
             const messageJson : Message = JSON.parse(message.toString());
+
+            console.log(`[Client ${messageJson.name}] sent "${messageJson.data}"`);
 
             switch(messageJson.head){
                 case "select":
@@ -121,6 +124,7 @@ function HasSelected(Client: Client){
 
 function SetCalls(Client : Client, call : number){
     Client.calls = isNaN(call) ? 0 : call;
+    // Debug
     console.log(`Client ${Client.name} sets their call as ${Client.calls}`)
 }
 
@@ -155,18 +159,20 @@ function CalculatePoints(){
 
 function SelectCard(Client : Client, selectedCard : Card){
     // Debug
-    console.log(`Client ${Client.name} selected ${JSON.stringify(selectedCard)}`)
+    console.log(`[Client ${Client.name}] selected ${JSON.stringify(selectedCard)}`)
     Client.selectedCard = selectedCard;
 }
 
 function EndTrick(Winner : Client){
     Winner.hits++;
     // Debug
-    console.log(`[Client ${Winner.name} ${Winner.hits}] Won with ${JSON.stringify(Winner.selectedCard)}`);
+    console.log(`[Client ${Winner.name}] Won with ${JSON.stringify(Winner.selectedCard)}`);
 
+    SelectedCardsCount = 0;
     CurrentCardsCount--;
     clients.forEach(Client => {
         RemoveSelectedCard(Client);
+        Client.selectedCard = undefined;
     });
 }
 
