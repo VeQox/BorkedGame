@@ -25,29 +25,68 @@ class Client {
     points : number;
     hits : number;
     calls : number;
+    ready : boolean;
 
-    constructor(name: string, connection: any, cards: Card[]) {
+    constructor(name: string, connection: any) {
         this.name = name;
         this.connection = connection;
         this.points = 0;
         this.hits = 0;
         this.calls = 0;
-        this.cards = cards;
+        this.cards = [] as Card[];
         this.selectedCard = undefined; // didnt find a init value
+        this.ready = false;
     }
 
     send(msg: string) {
         this.connection.send(msg);
     }
+
+    removeSelected(){
+        this.cards.splice(this.cards.indexOf(this.selectedCard as Card), 1);
+    }
+
+    update(){
+        this.send(JSON.stringify(Parse("server", "update", this.cards)));
+    }
+
+    isReady(){
+        return this.ready;
+    }
+
+    hasSelected(){
+        return this.selectedCard !== undefined
+    }
+
+    getNewHand(amount : number){
+        this.cards = [];
+        for(let i = 0; i < amount; i++){
+            let Card = this.getNewCard();
+            this.cards.push(Card);
+            UsedCards.push(Card);
+        }
+    }
+
+    getNewCard(){
+        let Card : Card;
+        do {
+            Card = Stack[Math.floor(Math.random()*Stack.length)];
+        } while (UsedCards.indexOf(Card) !== -1);
+        return Card;
+    }
 }
+
 type Message = {
     "name" : string,
     "head" : string,
     "data" : string,
 }
 
+let ReadyCount : number = 0;
+let currentClient : Client;
 let CardsPerRound : number = 1;
 let CurrentCardsCount : number = CardsPerRound;
+let started : boolean = false;
 let reverse : boolean  = false;
 let SelectedCardsCount : number = 0;
 let clients : Client[] = [];
@@ -56,21 +95,32 @@ const Stack : Card[] = InitStack();
 
 wss.on("listening", () => {
     // Debug
-    console.log(`Server is listenng on port ${port}`)
+    console.log(`Server is listening on port ${port}`)
 });
 
 wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
-    if (!request.url) {
-        ws.close(500);
+    if (!request.url || clients.length == 4 || started) {
+        console.log(`[Client ${(request.url as string).substring(1)}] connection failed`)
+        ws.close(1000);
     } else {
-        let client : Client = new Client(request.url.substring(1), ws, GetNewHand(CardsPerRound));
-        client.send(JSON.stringify(Parse("server", "newRound", client.cards)));
+        let client : Client = new Client((request.url as string).substring(1), ws);
+        client.getNewHand(CardsPerRound);
+        //client.send(JSON.stringify(Parse("server", "newRound", client.cards)));
         clients.push(client);
+        currentClient = clients[0];
+
+        clients.forEach(Client => {
+            Client.send(JSON.stringify(Parse("server", "updateReady", `${ReadyCount} / ${clients.length}`)))
+        });
+
         // Debug
         console.log(`[Client ${client.name}] connected`);
 
         ws.on('close', (code : number) => {
             // Debug
+            if(client.isReady()){
+                ReadyCount--;
+            }
             console.log(`[Client ${client.name}] disconnected with code ${code}`);
             clients.splice(clients.indexOf(client), 1);
         });
@@ -81,31 +131,57 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
             console.log(`[Client ${messageJson.name}] sent "${messageJson.data}"`);
 
             switch(messageJson.head){
+                case "setReady":
+                    if(client.isReady()) return;
+                    client.ready = true;
+                    ReadyCount++;
+                    clients.forEach(Client => {
+                        Client.send(JSON.stringify(Parse("server", "updateReady", `${ReadyCount} / ${clients.length}`)))
+                    });
+
+                    if(ReadyCount == clients.length && ReadyCount >= 2){
+                        started = true;
+                        clients.forEach(Client => {
+                            Client.send(JSON.stringify(Parse("server", "start", "")));
+                            Client.send(JSON.stringify(Parse("server", "update", Client.cards)))
+                        });
+                    }
+                    break;
                 case "select":
-                    if(HasSelected(client)) return;
+                    if(!started) return;
+                    if(client.hasSelected()) return;
+                    if(!currentClient.hasSelected() && client != currentClient) return;
 
                     SelectCard(client, client.cards[parseInt(messageJson.data)]);
                     SelectedCardsCount++;
 
-                    if(SelectedCardsCount === clients.length){
+                    if(currentClient == client){
+                        clients.forEach(Client => {
+                            if(Client !== currentClient){
+                                Client.send(JSON.stringify(Parse("server", "firstCard", currentClient.selectedCard)));
+                            }
+                        });
+                    }
+
+                    if(SelectedCardsCount === clients.length){ // if everyone has set a Card
 
                         EndTrick(GetWinnerOfTrick());
 
                         if(CurrentCardsCount == 0){
-
                             CalculatePoints();
 
                             SetCardsPerRound();
 
                             UsedCards = [];
-                            clients.forEach(client => {
-                                client.cards = GetNewHand(CardsPerRound);
-                                client.send(JSON.stringify(Parse("server", "newRound", client.cards)))
+                            clients.forEach(Client => {
+                                Client.getNewHand(CardsPerRound);
+                                Client.send(JSON.stringify(Parse("server", "newRound", Client.cards)))
                             });
                         }
                     } 
                     break;
                 case "setCalls":
+                    if(!started) return;
                     SetCalls(client, parseInt(messageJson.data));
                     break;
             }
@@ -113,19 +189,19 @@ wss.on("connection", (ws: Websocket.WebSocket, request: IncomingMessage) => {
     }
 });
 
-function RemoveSelectedCard(Client : Client){
-    Client.cards.splice(Client.cards.indexOf(Client.selectedCard as Card), 1);
-    Client.send(JSON.stringify(Parse("server", "update", Client.cards)));
-}
-
-function HasSelected(Client: Client){
-    return Client.selectedCard !== undefined
+function AreReady(){
+    clients.forEach(Client => {
+        if(!Client.isReady()){
+            return false;
+        }
+    });
+    return true;
 }
 
 function SetCalls(Client : Client, call : number){
     Client.calls = isNaN(call) ? 0 : call;
     // Debug
-    console.log(`Client ${Client.name} sets their call as ${Client.calls}`)
+    console.log(`[Client ${Client.name}] sets their call as ${Client.calls}`)
 }
 
 function SetCardsPerRound(){
@@ -171,9 +247,11 @@ function EndTrick(Winner : Client){
     SelectedCardsCount = 0;
     CurrentCardsCount--;
     clients.forEach(Client => {
-        RemoveSelectedCard(Client);
+        Client.removeSelected();
+        Client.update();
         Client.selectedCard = undefined;
     });
+    currentClient = clients.indexOf(currentClient) == clients.length ? clients[0] : clients[clients.indexOf(currentClient)+1];
 }
 
 function Parse(name : string, head : string, data : any){
@@ -216,22 +294,4 @@ function InitStack(){
         });
     });
     return tmp;
-}
-
-function GetNewHand(amount : number){
-    let Cards : Card[] = [];
-    for(let i = 0; i < amount; i++){
-        let Card = GetNewCard();
-        Cards.push(Card);
-        UsedCards.push(Card);
-    }
-    return Cards;
-}
-
-function GetNewCard(){
-    let Card : Card;
-    do {
-        Card = Stack[Math.floor(Math.random()*Stack.length)];
-    } while (UsedCards.indexOf(Card) !== -1);
-    return Card;
 }
