@@ -44,14 +44,20 @@
                     case "newRound":
                         CallsInput.removeAttribute("disabled");
                         ConfirmButton.removeAttribute("disabled");
-					case "update":
-						Display(messageJson.data);
+                    case "disableSelect":
+                        break;
+                        case "updateCards":
+						Display(messageJson.body);
 						break;
+                    case "forcedType":
+                        break;
+                    case "updateSelectedCards":
+                        break;
                     case "updateReady":
-                        ReadyCount = messageJson.data;
+                        ReadyCount = messageJson.body;
                         break;
 					case "points":
-						Points = messageJson.data;
+						Points = messageJson.body;
                         break;
                     case "firstCard":
                         UsableCards = getCardsPerType();
@@ -80,7 +86,7 @@
 
         function Select(id){
             console.log(id)
-            ws.send(JSON.stringify(Parse(Name, "select", `${id}`))) 
+            ws.send(JSON.stringify(Parse(Name, "selectCard", `${id}`))) 
         }
 
 
@@ -95,7 +101,7 @@
             ConfirmButton.setAttribute("disabled", "");
             const calls = CallsInput.value;
 
-            ws.send(JSON.stringify(Parse(Name, "setCalls", calls)));
+            ws.send(JSON.stringify(Parse(Name, "setCall", calls)));
             newRound = false;
         }
 

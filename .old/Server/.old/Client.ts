@@ -6,7 +6,7 @@ export default class Client {
     name : string;
     connection : Websocket.WebSocket;
     cards : Card[];
-    selectedCard : Card | undefined;
+    selectedCard : Card;
     points : number;
     hits : number;
     calls : number;
@@ -19,7 +19,7 @@ export default class Client {
         this.hits = 0;
         this.calls = 0;
         this.cards = [] as Card[];
-        this.selectedCard = undefined; // didnt find a init value
+        this.selectedCard = {} as Card; // didnt find a init value
         this.ready = false;
     }
 
@@ -36,7 +36,10 @@ export default class Client {
             this.points += this.calls - this.hits;
         }
 
-        this.updatePoints;
+        this.hits = 0;
+        this.calls = 0;
+
+        this.updatePoints();
     }
 
     updatePoints(){
@@ -49,6 +52,7 @@ export default class Client {
 
     removeSelected(){
         this.cards.splice(this.cards.indexOf(this.selectedCard as Card), 1);
+        this.selectedCard = {} as Card;
     }
 
     updateCards(){
@@ -60,6 +64,6 @@ export default class Client {
     }
 
     hasSelected(){
-        return this.selectedCard !== undefined
+        return this.selectedCard !== {} as Card
     }
 }

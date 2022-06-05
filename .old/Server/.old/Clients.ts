@@ -6,10 +6,14 @@ export default class Clients{
     clients : Client[];
     
     private stack : Card[] = Clients.initStack();
-    private usedCards : Card[];
+    private usedCards : Card[] = [];
     private static types : string[] = ["♣","♠","♦","♥"];
     private static values : string[] = ["2","3","4","5","6","7","8","9","10","B","Q","K","A"];
 
+    constructor(){
+        this.clients = [];
+    }
+    
     send(msg : string){
         this.clients.forEach(client => {
             client.send(msg);
@@ -80,7 +84,7 @@ export default class Clients{
     }
 
     private getNewHand(amount : number){
-        let cards : Card[];
+        let cards : Card[] = [];
         for (let i = 0; i < amount; i++) {
             const card : Card = this.getNewCard();
             cards.push(card);
@@ -105,6 +109,7 @@ export default class Clients{
                 tmp.push(card);
             });
         });
+        console.log(tmp)
         return tmp;
     }
 }
