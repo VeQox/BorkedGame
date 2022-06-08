@@ -144,13 +144,14 @@ export default class Game{
      * @returns 
      */
     public selectCard(player : Player, selected : number){
-        if(player.hasSelected()) return;
-        if(player != this.players.getAt(this.currentPlayer)) return;
+        if(player.hasSelected()) return false;
+        if(player != this.players.getAt(this.currentPlayer)) return false;
 
         const selectedCard : Card = player.cards.getAt(selected);
 
         player.selectedCard = selectedCard;
         this.selectedCards.push(selectedCard);
+        return true;
     }
 
     /**
@@ -190,5 +191,48 @@ export default class Game{
         else{
             this.cardsPerRound++;
         }
+    }
+    
+    /**
+     * set player as ready if
+     * @param player 
+     * @returns 
+     */
+    public setReady(player : Player){
+        if(player.isReady()) return;
+        player.readyState = true;
+    }
+
+    public start(){
+        this.startingPlayer = 0;
+        this.currentPlayer = this.startingPlayer;
+
+        this.started = true;
+
+        this.getNewHands(this.cardsPerRound);
+        this.emit(Message.parseS("server", "start", ""));
+        this.players.getAt(this.startingPlayer).send(Message.parseS("server", "currentPlayer", ""));
+    }
+
+    public updateCards(){
+        this.players.updateCards();
+    }
+
+    public forceType(){
+        this.emit(Message.parseS("server", "forcedType", this.players.getAt(this.startingPlayer).selectedCard.Type));
+    }
+
+    public isStartingPlayer(player : Player){
+        if(player == this.players.getAt(this.startingPlayer)){
+            return true;
+        }
+        return false;
+    }
+
+    public isRoundOver(){
+        if(this.currentCards == 0){
+            return true;
+        }
+        return false;
     }
 }
